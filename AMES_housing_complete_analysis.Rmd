@@ -1,0 +1,806 @@
+---
+title: "DAB501: Final Project"
+output: rmdformats::readthedown
+---
+
+<style>
+.nav>li>a {
+    position: relative;
+    display: block;
+    padding: 10px 15px;
+    color: #990000;
+}
+}
+
+</style>
+
+```{css , echo = FALSE, message=FALSE, warning=FALSE}
+.columns{display: flex;}
+h1{color: blue;}
+h2{color: black;}
+h3{color: green;}
+```
+
+## Group Number: 25
+
+## Group Members:
+
+1.AASHUTOSH SEHGAL <br/> 2.IMAN FATIMA <br/> 3.JASMINE <br/> 4.RUBALDEEP KAUR <br/> 5.UMAIR NABEEL <br/>
+
+## Statement of Academic Integrity
+
+We, hereby state that we have not communicated with or gained information in any way from any person or resource that would violate the College's academic integrity policies, and that all work presented is our own. In addition, We also agree not to share my work in any way, before or after submission, that would violate the College's academic integrity policies.
+
+
+
+
+```{r, echo = FALSE, message=FALSE, warning=FALSE}
+library(tidyverse)
+library(dplyr)
+library(skimr)
+library(see)
+library(broom)
+library(performance)
+library(ggplot2)
+library(qqplotr)
+library(reshape2)
+
+data(ames, package = "modeldata")
+
+# filtering using instructions
+ames<-ames %>% filter(Gr_Liv_Area<4000)
+
+
+
+ames$Mo_Sold <- as.factor(ames$Mo_Sold) 
+
+```
+
+# Exploratory Data Analysis {.tabset .tabset-fade .tabset-pills}
+
+## Univariate plots
+
+<h3> Sale Price</h3>
+
+```{r Sale_Price}
+ggplot(ames)+
+  geom_histogram(aes(Sale_Price),bins=40,color='red',fill='skyblue')+
+  theme_minimal()+
+  labs(title="Sale Price distribution",x="Sale Price ($)",y="Number of Houses")+
+  scale_x_continuous(labels = scales::comma)
+
+mean(ames$Sale_Price)
+```
+
+Sale Price is right-skewed; there are more inexpensive houses than expensive ones. The mean sale price is 180411.6
+
+Checking Outliers in Sale Price using Box plot.
+
+```{r}
+ggplot(data = ames, mapping = aes(Sale_Price))+
+  geom_boxplot( color = 'red')+
+  scale_x_continuous(labels = scales::comma)+
+  theme_minimal()
+```
+
+It is also possible to extract the values of the potential outliers based on the IQR criterion using the boxplot.stats()$out function:
+
+```{r}
+boxplot.stats(ames$Sale_Price)$out
+```
+
+Extracting all the rows corresponding to these outliers:
+
+```{r}
+out <- boxplot.stats(ames$Sale_Price)$out
+out_ind <- which(ames$Sale_Price %in% c(out))
+
+ames[out_ind,]
+```
+
+<h3> Pool Area</h3>
+
+```{r}
+ggplot(ames)+
+  geom_histogram(aes(Pool_Area),color='red',fill='skyblue')+
+  theme_minimal()+
+  labs(title="Pool Area distribution",x="Pool Area (sq.ft.)",y="Number of Houses")
+
+ames %>% filter(Pool_Area>0) %>% summarize(n=n())
+```
+
+Pool Area is highly right skewed.Most of the houses have 0 pool area.Only 11 houses have pool area greater than zero.
+
+<h3> Monthly sales</h3>
+
+```{r}
+Monthly_sales<- ames %>%
+  group_by(Mo_Sold)%>%
+  summarise( n = n())%>%
+  mutate(Month_sold = factor(month.abb[Mo_Sold], levels = month.abb))
+
+Monthly_sales
+```
+
+```{r}
+ggplot(data = Monthly_sales, mapping = aes(x= Month_sold, y= n,fill = Month_sold, label = n))+
+  geom_col(show.legend = FALSE)+
+  geom_text(aes(label = n, color = Month_sold, vjust=-0.2),show.legend = FALSE )+
+  theme_minimal()+
+  labs(title = 'Individual residential properties sold in Ames, IA from 2006 to 2010')+
+  xlab(element_blank())+
+  ylab('Number of Properties')
+```
+
+It is clear from the plot that most of the houses were sold in the mid months i.e May, June, July and least were sold in initial and last month.
+
+<h3> Houses sold by Year</h3>
+
+Let’s start. The first thing to do is to count the number of observations for each value of the year_sold. Thus, how many house are there for each year? We can do this by grouping the data on year_sold and then counting the number of rows using n.
+
+
+```{r}
+sold_house<- ames %>%
+  group_by(Year_Sold)%>%
+  summarise(n = n())
+
+sold_house
+```
+
+Let's Plot it using Geom_col
+
+```{r}
+ggplot(sold_house)+
+  geom_col(aes(x = Year_Sold,y = n),color='red',fill='skyblue')+
+  theme_minimal()+
+  labs(title="Number of house sold each year",x="Year",y="Count")
+```
+
+It is clear from the plot that maximum houses were sold in the year of 2009 with approximate 700 value. 2006,2008 and, 2009 had almost same sales and 2010 is the only year with least sale.
+
+<h3> Lot Area</h3>
+
+```{r}
+ggplot(ames)+
+  geom_histogram(aes(Lot_Area),bins=40,color='red',fill='skyblue')+
+  geom_vline(aes(xintercept=mean(Lot_Area)),
+             color="blue", linetype="dashed", size=1)+
+  theme_minimal()+
+  labs(title="Lot Area Distribution",x="Lot Area (sq.ft.)",y="Number of Houses")
+
+mean(ames$Lot_Area)
+```
+
+Lot Area is highly right skewed. Most of the houses have lot sizes smaller than 50000 square feet. The mean lot size is 10103.58.
+
+<h3> Houses Built by Year</h3>
+
+```{r}
+ggplot(ames)+
+  geom_density(aes(Year_Built),color='red',fill='skyblue')+
+  theme_minimal()+
+  labs(title="Year Built Distribution",x="Year Built",y="Density")
+```
+
+We have three major peaks for the years the houses are built. One around 1920, the second around 1960 and the third one after 1990
+
+<h3> Ground Living Area</h3>
+
+```{r}
+ggplot(ames)+
+  geom_histogram(aes(Gr_Liv_Area),bins=40,color='red',fill='skyblue')+
+  geom_vline(aes(xintercept=mean(Gr_Liv_Area)),
+             color="blue", linetype="dashed", size=1)+
+  theme_minimal()+
+  labs(title="Above Ground Living Area Distribution with mean",x="Living Area (sq.ft.)",y="Number of Houses")
+
+mean(ames$Gr_Liv_Area)
+```
+
+The distribution for Living Area is multi-nodal and right skewed. Meaning more houses have smaller living areas than larger ones. The mean is shown by the vertical line which is 1493.9
+
+<h3> Garage Area</h3>
+
+```{r}
+ggplot(ames)+
+  geom_density(aes(Garage_Area),color='red',fill='skyblue')+
+  theme_minimal()+
+  labs(title="Garage Area Distribution",x="Garaage Area (sq.ft.)",y="Density")
+```
+
+The distribution of Garage Area is multi-nodal and normal. Some houses have O garage area but most of the distribution is concentrated around 500 sq ft.
+
+<h3> Total Basement Area</h3>
+
+```{r}
+ggplot(ames)+
+  geom_histogram(aes(Total_Bsmt_SF),bins=40,color='red',fill='skyblue')+
+  theme_minimal()+
+  labs(title="Basement Area Distribution",x="Total basement Area (sq.ft.)",y="Number of Houses")
+```
+
+Total Basement Area is unimodal and slightly rightly skewed. Some houses also have no basement
+
+<h3> Foundation</h3>
+
+Creating Frequency Table
+```{r}
+F_tab<- data.frame(table(ames$Foundation))
+colnames(F_tab)<- c('Foundation','count')
+F_tab
+```
+
+Bar graph for foundation.
+
+```{r}
+ggplot(F_tab,mapping = aes(x=Foundation, y=count,fill=Foundation))+
+  geom_col()+
+  theme_minimal()+
+  labs(title = 'Distribution of Foundation')
+```
+
+This bar chat shows that most houses were made up using CBlock and PConc and least were made using stone wood and slab.
+
+## Bivariate plots
+
+We will now do Bivariate analysis involving 2 variables.
+
+<h3> Houses sold by Year and Month</h3>
+
+```{r}
+ggplot(ames)+
+  geom_bar(aes(Year_Sold,fill=Mo_Sold),position="dodge")+
+  theme_minimal()+
+  labs(title="Houses sold by year and month",x="Year",y="Number of Houses",fill="Months")
+  
+ames %>% group_by(Year_Sold) %>% summarize(houses=n())
+```
+
+Most of the houses were sold in months 6 and 7 of all the years, as evident by the peaks in the barcharts. Least number of houses were sold in 2010.
+
+<h3> Sale Price VS sale Year</h3>
+
+```{r}
+ggplot(data = ames, mapping = aes(x = as.factor(Year_Sold), y = Sale_Price, color = as.factor(Year_Sold)))+
+  geom_boxplot(show.legend = FALSE)+
+  stat_summary(fun.y=mean, geom="point", shape=20, size=4, color="black", fill="red") +
+  scale_y_continuous(labels = scales::comma)+
+  theme_minimal()+
+  xlab(element_blank())+
+  ylab('Sale Price')+
+  labs(title = 'Sale Price VS Year of sale')
+```
+
+From above plot, similar patter can be seen in all the years for sale Price. The average sale price is almost below 200,000 which represented by a black dot on the plot.
+
+Let's calculate it manually.
+
+```{r}
+mean(ames$Sale_Price)
+```
+
+<h3> Sale Price VS Garage Area</h3>
+
+```{r}
+ggplot(ames,aes(Garage_Area,Sale_Price))+
+  geom_point()+
+  geom_smooth(method='lm', se=FALSE)+
+  scale_y_continuous(labels = scales::comma)+
+   theme_minimal()+
+  labs(title="Sale Price VS Garage Area",x="Garage Area(sq. ft.)",y="Sale Price")
+
+cor(ames$Garage_Area,ames$Sale_Price)
+```
+
+A strong positive correlation exists for garage area and sale price. It means as Garage Area increases, Sale Price also increases.
+
+<h3> Neighborhood VS Sale Price</h3>
+
+```{r}
+ggplot(ames,mapping = aes(x = Neighborhood,y = Sale_Price ))+
+  geom_boxplot(aes(color = Neighborhood), show.legend=FALSE)+
+  scale_y_continuous(labels = scales::comma)+
+  theme_minimal()+
+  coord_flip()
+```
+
+It is seen that Northridge Heights and Stony Brook are the most expensive neighborhoods. Northridge Heights has a great significance on the sale price of the houses.
+
+<h3>Houses by Neighborhood and Lot type</h3>
+
+```{r}
+ggplot(ames)+
+  geom_bar(aes(Neighborhood,fill=Lot_Shape))+
+  theme_minimal()+
+  labs(title="Houses by Neighborhood and Lot Type",x="Neighborhood",y="Number of Houses",fill="Lot Shape")+
+  coord_flip()
+```
+
+North Ames Neighborhood has the highest number of houses with Regular Lot Type
+
+<h3> Sale Price VS Total Basement Area</h3>
+
+```{r}
+ggplot(ames,aes(Total_Bsmt_SF,Sale_Price))+
+  geom_point()+
+  geom_smooth(method='lm', se=FALSE)+
+  scale_y_continuous(labels = scales::comma)+
+   theme_minimal()+
+  labs(title="Sale Price VS Basement Area",x="Basement Area (sq. ft.)",y="Sale Price ($)")
+
+cor(ames$Total_Bsmt_SF,ames$Sale_Price)
+```
+
+A strong positive correlation exists between Basement area and sale price. It means as Basement Area of houses increases, their sale Price also increases.
+
+<h3> Sale Price VS Year Built</h3>
+
+```{r}
+ggplot(ames,aes(Year_Built,Sale_Price))+
+  geom_point()+
+  geom_smooth(method='lm', se=FALSE)+
+  scale_y_continuous(labels = scales::comma)+
+  theme_minimal()+
+  labs(title="Sale Price VS Year Built",x="Year Built",y="Sale Price ($)")
+
+cor(ames$Year_Built,ames$Sale_Price)
+```
+
+A strong positive correlation exists between Year built and Sale price. It means that newer houses are sold at higher prices and houses built in the earlier years were sold for lesser prices.
+
+<h3> Sale Price VS Lot Area</h3>
+
+```{r}
+ggplot(ames,aes(Lot_Area,Sale_Price))+
+  geom_point()+
+  geom_smooth(method='lm', se=FALSE)+
+  scale_y_continuous(labels = scales::comma)+
+    theme_minimal()+ 
+  labs(title="Sale Price VS Lot Area",x="Lot Area (sq. ft.)",y="Sale Price ($)")
+
+```
+
+We can see that a fairly strong positive correlation exists between lot area and sale price. But we need to be sure that this relationship is not influenced by outliers, so we will filter the houses with less than 100000 lot area and then check the relationship again.
+
+```{r}
+
+ cor(ames$Lot_Area,ames$Sale_Price)
+
+```
+
+It is evident that the relationship is influenced by the outliers but the general trend is the same. The houses with larger lot areas have greater Sale Prices.
+
+## Multivariate plots
+
+We will now do Multivariate analysis involving more than 2 variables.
+
+<h3> Relationship between Sale Price and Year Built based on Street type</h3>
+
+```{r}
+ggplot(ames,aes(Year_Built,Sale_Price,color = Street))+
+  geom_jitter(alpha = 0.2)+
+  geom_smooth(method='lm', se=FALSE)+
+  scale_y_continuous(labels = scales::comma)+
+  theme_minimal()+
+  labs(title="Sale Price VS Year Built based on Street",x="Year Built",y="Sale Price ($)")
+```
+
+The above scatter plot shows a linear and direct relationship between built year and sale price for both type of streets.Almost all houses were connected with Paved streets and only few were with gravel streets.
+
+<h3> Relationship between Sale price and sold year based on Paved Driveway</h3>
+
+```{r}
+ggplot(data = ames,mapping = aes(Year_Sold,Sale_Price,fill = Paved_Drive) )+
+  geom_bar(stat = 'identity',position='dodge')+
+  scale_y_continuous(labels = scales::comma)+
+  theme_minimal()
+```
+
+Mostly expensive houses had paved driveway for all the given years in which they were sold. Houses with price range around $200,000 were connected to partial pavement and Dirt Gravel, similar price pattern can be seen for all properties for all years.
+
+```{r}
+unique(ames$Sale_Type)
+```
+
+<h3>Number of Sales by Condition & Miscellaneous Feature<h3/>
+
+```{r}
+ggplot(data = ames, aes(x=Sale_Condition,fill=Misc_Feature)) + 
+  geom_bar()+
+  theme_minimal()+
+  labs(title="No of Sales by Sale Condition & Misc. Feature",x="Sale Condition",y="Number of Houses",fill="Misc. Feature")
+```
+
+Most of the houses sold had a normal sale with no miscellaneous feature.
+
+<h3>Avg Sale Price by of Rooms and Central Air<h3/>
+
+```{r}
+ggplot(ames,aes(x=TotRms_AbvGrd,y=Sale_Price))+
+  stat_summary(fun = mean, na.rm = TRUE,geom='line',aes(group=Central_Air,color=Central_Air))+
+  scale_y_continuous(labels = scales::comma)+
+  labs(title="Avg Sale Price by No of Rooms & Central Air",x="Total rooms above ground",y="Sale Price ($)")+
+  theme_minimal()
+```
+
+It is evident from the line plot that houses with central air have a higher avg sale price than those which do not have central air conditioning. Graph also hows that avg sale price increases with the number of rooms.
+
+We can also get the Avg prices manually
+
+```{r}
+ames %>% group_by(TotRms_AbvGrd, Central_Air) %>%
+  summarize(Avg_Price=mean(Sale_Price)) %>% arrange(desc(Avg_Price))
+```
+
+<h3>Correlation matrix of numeric variables<h3/>
+
+```{r echo = FALSE, message=FALSE, warning=FALSE}
+ames_num <- ames %>% select(where(is.numeric))
+ames_num <- subset(ames_num, select = -c(Bsmt_Full_Bath, Bsmt_Half_Bath,Full_Bath,Half_Bath,Bedroom_AbvGr,Kitchen_AbvGr,TotRms_AbvGrd,Fireplaces,Garage_Cars,Longitude,Latitude,Year_Sold,Year_Built,Year_Remod_Add))
+```
+
+```{r}
+cormat <- round(cor(ames_num),2)
+
+melted_cormat <- melt(cormat)
+head(melted_cormat)
+
+ggplot(data = melted_cormat, aes(x=Var1, y=Var2, fill=value)) + 
+  geom_tile()+
+  theme_minimal()+
+  theme(axis.text.x = element_text(angle = 90, vjust = 0.5, hjust=1))+
+  labs(title="Correlation Matrix")
+```
+
+
+## Summary 
+
+```{r}
+#ames %>% 
+#  group_by() %>% 
+#  summarize(mean_ = mean())
+
+
+```
+
+Quick Description
+
+<h3>Response Variable<h3/>
+
+`Sale_Price` is the response variable in `ames` dataset. It is not normally distributed. We will be transforming it using log transformation in the data transformation Tablater. Right now, we will be using it as it is.
+
+```{r}
+ggplot(ames)+
+  geom_histogram(aes(Sale_Price),bins=40,color='red',fill='skyblue')+
+  theme_minimal()+
+  labs(title="Sale Price distribution",x="Sale Price ($)",y="Number of Houses")+
+  scale_x_continuous(labels = scales::comma)
+```
+
+
+
+# Modeling {.tabset .tabset-fade .tabset-pills}
+
+## Model 1 (Sale Price ~ Lot Area) 
+
+```{r}
+ggplot(ames,aes(Lot_Area,Sale_Price))+
+  geom_point()+
+  geom_smooth(method='lm', se=FALSE)+
+  scale_y_continuous(labels = scales::comma)+
+    theme_minimal()+ 
+  labs(title="Sale Price VS Lot Area",x="Lot Area (sq. ft.)",y="Sale Price ($)")
+```
+
+```{r}
+ames %>%
+  summarise(cor(Lot_Area, Sale_Price))
+```
+
+```{r}
+m1 <- lm(Sale_Price ~ Lot_Area, data = ames)
+tidy(m1)
+```
+
+$$ \hat{y} = 152869.484 + 2.73 \times Lot-Area $$
+
+This equation tells us two things:
+
+-  For houses with a `Lot_Area` of 0  we expect their mean sale price to be 152869.484 dollars.  
+
+-  For every 1 square ft increase in `Lot_Area`, we expect an sale price to increase on an average of 2.73 dollars.
+
+```{r}
+glance(m1)
+```
+
+For this model, 7.29% of the variability in `Sale_Price` is explained by `Lot_Area`.
+
+
+
+## Model 2 (Sale Price ~ Garage Area)
+
+```{r}
+ggplot(ames,aes(Garage_Area,Sale_Price))+
+  geom_point()+
+  geom_smooth(method='lm', se=FALSE)+
+  scale_y_continuous(labels = scales::comma)+
+   theme_minimal()+
+  labs(title="Sale Price VS Garage Area",x="Garage Area(sq. ft.)",y="Sale Price")
+```
+
+```{r}
+ames %>%
+  summarise(cor(Garage_Area, Sale_Price))
+```
+
+```{r}
+m2 <- lm(Sale_Price ~ Garage_Area, data = ames)
+tidy(m2)
+```
+
+$$ \hat{y} = 68173.409 + 238 \times Garage-Area $$
+This equation tells us two things:
+
+-  For houses with a `Garage_Area` of 0  we expect their mean sale price to be 68173.409 dollars.  
+
+-  For every 1 square ft increase in `Garage_Area`, we expect an increase of mean sale price to increase 238 dollars.
+
+```{r}
+glance(m2)
+```
+
+For this model, 42.0% of the variability in `Sale_Price` is explained by `Garage_Area`.
+
+
+## Model 3 (Sale Price ~ Living Area)
+
+```{r}
+# some code goes here
+ggplot(ames,aes(Gr_Liv_Area,Sale_Price))+
+  geom_point() +
+  geom_smooth(method = 'lm',se=FALSE)+
+   scale_y_continuous(labels = scales::comma)+
+   theme_minimal()+
+  labs(title="Sale Price VS Living Area",x="Living Area(sq. ft.)",y="Sale Price")
+```
+
+```{r}
+ames %>%
+  summarise(cor(Gr_Liv_Area, Sale_Price))
+```
+
+```{r}
+m3 <- lm(Sale_Price ~ Gr_Liv_Area, data = ames)
+tidy(m3)
+```
+
+$$ \hat{y} = 6773.484 + 116.2 \times Gr-Liv-Area$$
+
+This equation tells us two things:
+
+-  For houses with a `Gr_Liv_Area` of 0  we expect their mean sale price to be 6773.484 dollars.  
+
+-  For every 1 square ft increase in `Gr_Liv_Area`, we expect an sale price to increase on an average 116.2 dollars.
+
+```{r}
+glance(m3)
+```
+
+For this model, 51.8% of the variability in `Sale_Price` is explained by `Gr_Liv_Area`.
+
+
+## Model Assessment
+
+```{r}
+library(modelsummary)
+
+models <- list(
+  "Sale Price ~ Lot_Area"     = m1,
+ "Sale Price ~ Garage_Area" = m2,
+  "Sale Price ~ Gr_Liv_Area"=m3
+)
+
+modelsummary(models)
+```
+
+Out of all three models, Model 1 has the least R2 of about 7.3% which means higher variability around the regression line.
+
+## Model Diagnostics
+
+<h3>Sale Price ~ Lot Area<h3/>
+
+```{r}
+m1_aug <- augment(m1)
+
+m1_aug
+```
+
+```{r}
+# Linearity
+
+ggplot(data = m1_aug, aes(x = .fitted, y = .resid)) +
+  geom_point() +
+  geom_hline(yintercept = 0, linetype = "dashed", color = "red") +
+  xlab("Fitted values") +
+  ylab("Residuals")+
+  theme_minimal()
+```
+
+Model 1 fails the condition of linearity.
+
+```{r}
+# Nearly normal residuals
+
+ggplot(data = m1_aug, aes(x = .resid)) +
+  geom_histogram(color='red',fill='skyblue') +
+  xlab("Residuals")+
+  theme_minimal()
+```
+
+Model 1 also fails the condition of normality of residuals.
+
+```{r}
+# constant variability
+
+check_model(m1)
+
+check_heteroscedasticity(m1)
+```
+
+<h3>Sale Price ~ Garage Area<h3/>
+
+```{r}
+# model diagnostics
+
+m2_aug <- augment(m2)
+
+m2_aug
+```
+
+```{r}
+# Linearity
+
+ggplot(data = m2_aug, aes(x = .fitted, y = .resid)) +
+  geom_point() +
+  geom_hline(yintercept = 0, linetype = "dashed", color = "red") +
+  xlab("Fitted values") +
+  ylab("Residuals")+
+  theme_minimal()
+```
+
+```{r}
+# nearly normal 
+
+ggplot(data = m2_aug, aes(x = .resid)) +
+  geom_histogram(color='red',fill='skyblue') +
+  xlab("Residuals")+
+  theme_minimal()
+```
+
+```{r}
+# constant variability
+
+check_model(m2)
+
+check_heteroscedasticity(m2)
+```
+
+<h3>Sale Price ~ Living Area<h3/>
+
+```{r}
+# model diagnostics
+
+m3_aug <- augment(m3)
+
+m3_aug
+```
+
+```{r}
+# Linearity
+
+ggplot(data = m3_aug, aes(x = .fitted, y = .resid)) +
+  geom_point() +
+  geom_hline(yintercept = 0, linetype = "dashed", color = "red") +
+  xlab("Fitted values") +
+  ylab("Residuals")+
+  theme_minimal()
+```
+
+```{r}
+# nearly normal rediduals
+
+ggplot(data = m3_aug, aes(x = .resid)) +
+  geom_histogram(color='red',fill='skyblue') +
+  xlab("Residuals")+
+theme_minimal()
+```
+
+```{r}
+# constant variability
+
+check_model(m3)
+
+check_heteroscedasticity(m3)
+```
+
+Based on the diagnostics and assessment, model 2 and model 3 both have normal distribution of residuals and residuals are  linearly distributed along zero, but model 3 is our best fit model because of higher adjusted R2 value.
+
+
+## Data Transformation and Re-fitting the Best Model
+
+Now we will be log transforming our response variable Sale_price.
+
+```{r}
+
+ames<-ames %>% mutate(sale_norm=log(Sale_Price))
+
+ggplot(ames)+
+  geom_histogram(aes(sale_norm),color='red',fill='skyblue')
+
+ames %>%
+  summarise(cor(Gr_Liv_Area, sale_norm))
+
+m4 <- lm(sale_norm ~ Gr_Liv_Area, data = ames)
+tidy(m4)
+ 
+glance(m4)
+```
+$$ \hat{y} =  11.1 + 0.000594  \times Gr-Liv-Area$$
+
+
+This equation tells us two things:
+
+-  For houses with a `Gr_Liv_Area` of 0  we expect their mean sale price to be 11.1 dollars.  
+
+-  For every 1 square ft increase in `Gr_Liv_Area`, we expect an sale price to increase on an average 0.000594 dollars
+
+For this model, 50.6% of the variability in `Sale_Price` is explained by `Gr_Liv_Area`.
+
+Running Diagnostics for this model:
+
+```{r}
+m4_aug <- augment(m4)
+
+# Checking for Linearity
+
+ggplot(data = m4_aug, aes(x = .fitted, y = .resid)) +
+  geom_point() +
+  geom_hline(yintercept = 0, linetype = "dashed", color = "red") +
+  xlab("Fitted values") +
+  ylab("Residuals")+
+  theme_minimal()
+
+# Checking for Nearly normal residuals
+
+ggplot(data = m4_aug, aes(x = .resid)) +
+  geom_histogram(color='red',fill='skyblue') +
+  xlab("Residuals")+
+  theme_minimal()
+
+
+#Checking for constant variability
+
+check_model(m4)
+
+check_heteroscedasticity(m4)
+
+
+```
+Even though this model has a slighter lower adjusted R2, the linearity, homogeneity of variance and normality of residuals are slightly better fitted.
+
+# Storyboard
+
+Include one or more clear pictures / screenshots of your storyboard here.
+
+# Describe your Story
+
+Recording of you telling your story using the data product.
+
+
+Provide the session info at the end.
+
+```{r}
+sessionInfo()
+```
+
